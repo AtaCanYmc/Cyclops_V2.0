@@ -9,12 +9,10 @@
 #include <ArduinoJson.h>
 #include "Base64.h"
 #include "Skeleton.h"
+#include "Memory.h"
 #include "Eye.h"
 #include <SPIFFS.h>
 #include <FS.h>
-
-#define HORIZONTAL_PIN 1
-#define VERTICAL_PIN 2
 
 struct errorContainer {
     String date;
@@ -24,35 +22,34 @@ struct errorContainer {
 };
 
 class Brain { // For Web Server
+    public:
+        WebServer *brainServer;
+        Memory *memory;
+        Skeleton *skeleton;
+        Eye *eye;
 
-public:
-    WebServer *brainServer;
-    fs::FS *fileSystem;
-    Skeleton *skeleton;
-    Eye *eye;
+        Brain(WebServer &brainServer, Memory &memory);
+        void restServerRouting();
+        String getDateTime();
 
-    Brain(WebServer &brainServer, fs::FS &fileSystem);
-    void restServerRouting();
-    String getDateTime();
-private:
-    void restartDevice();
-    void handleNotFound();
-    void handleRoot();
-    void returnError(errorContainer error);
+    private:
+        void restartDevice();
+        void handleNotFound();
+        void handleRoot();
+        void returnError(errorContainer error);
 
-    void getSettings();
-    void setSettings();
+        void getWifiScan();
+        void setWifiConnection();
+        void connectToWifi(String ssid, String password);
+        void addWifiConfig();
 
-    void getWifiScan();
-    void setWifi();
+        void getEye();
+        void setEye();
 
-    void getEye();
-    void setEye();
+        void getSkeleton();
+        void setSkeleton();
 
-    void getSkeleton();
-    void setSkeleton();
-
-    void captureImage();
+        void captureImage();
 };
 
 #endif

@@ -1,7 +1,6 @@
 #include "Skeleton.h"
 
-Skeleton::Skeleton()
-{
+Skeleton::Skeleton(){
     pinMode(HORIZONTAL_PIN, OUTPUT);
     pinMode(VERTICAL_PIN, OUTPUT);
     horizontalAxis.attach(HORIZONTAL_PIN);
@@ -21,8 +20,7 @@ void Skeleton::setAxis(char axis='Y', int angle=0)
     }
 }
 
-int Skeleton::addAxis(char axis='Y', int addAngle=10)
-{
+int Skeleton::addAxis(char axis='Y', int addAngle=10){
     if(axis == 'X')
     {
         setHorizontalAngle(horizontalAxisAngle + addAngle);
@@ -33,8 +31,7 @@ int Skeleton::addAxis(char axis='Y', int addAngle=10)
     }
 }
 
-void Skeleton::calibrate()
-{
+void Skeleton::calibrate(){
     setHorizontalAngle(0);
     setVerticalAngle(0);
 }

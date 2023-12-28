@@ -24,7 +24,8 @@ const char* pwd = "6db100b8";
 IPAddress ip;
 
 WebServer server(80);
-Brain brain(server, SPIFFS);
+Memory memory(SPIFFS);
+Brain brain(server, memory);
 
 
 void setup() {

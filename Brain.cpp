@@ -1,10 +1,10 @@
 #include "Brain.h"
 
-Brain::Brain(WebServer &brainServer, fs::FS &fileSystem){
-    this->fileSystem = &fileSystem;
+Brain::Brain(WebServer &brainServer, Memory &memory){
+    this->memory = &memory;
     this->brainServer = &brainServer;
     this->skeleton = new Skeleton();
-    this->eye = new Eye(*this->fileSystem);
+    this->eye = new Eye(*this->memory);
 }
 
 void Brain::restartDevice(){
@@ -15,20 +15,15 @@ void Brain::restartDevice(){
     serializeJson(doc, messageJson);
     brainServer->send(200, "application/json", messageJson);
     uint32_t t = millis();
-    if (t + 1000 < millis()){
-        ESP.restart();
-    }
+    while (millis() - t < 5000) {}
+    ESP.restart();
 }
 
 void Brain::restServerRouting(){
     Serial.println("[Brain] Rest Server Routing");
 
-    brainServer->on("/", HTTP_GET, [&](){
+    brainServer->on("/", HTTP_GET, [&](){ // root
         handleRoot();
-    });
-
-    brainServer->on("/settings", HTTP_GET, [&](){
-        getSettings();
     });
 
     brainServer->on("/wifiScan", HTTP_GET, [&](){
@@ -36,7 +31,7 @@ void Brain::restServerRouting(){
     });
 
     brainServer->on("/wifi", HTTP_POST, [&](){
-        setWifi();
+        setWifiConnection();
     });
 
     brainServer->on("/eye", HTTP_GET, [&](){
@@ -71,28 +66,51 @@ void Brain::restServerRouting(){
 }
 
 void Brain::handleNotFound() {
-    String message = "File Not Found\n\n";
-    message += "URI: ";
-    message += brainServer->uri();
-    message += "\nMethod: ";
-    message += (brainServer->method() == HTTP_GET)?"GET":"POST";
-    message += "\nArguments: ";
-    message += brainServer->args();
-    message += "\n";
+    String errorMessage = "File Not Found\n\n";
+    errorContainer error;
+    error.date = getDateTime();
+    error.errorType = "Not found";
+    error.errorCode = 404;
 
     for (uint8_t i=0; i<brainServer->args(); i++){
-        message += " " + brainServer->argName(i) + ": " + brainServer->arg(i) + "\n";
+        errorMessage += " " + brainServer->argName(i) + ": " + brainServer->arg(i) + "\n";
     }
-    brainServer->send(404, "text/plain", message);
+
+    error.error = errorMessage;
+    returnError(error);
 }
 
 void Brain::handleRoot() {
     String messageJson;
-    StaticJsonDocument<512> doc;
-    doc["message"] = "Hello from Cyclops";
-    doc["version"] = "2.0";
-    doc["author"] = "AtaCanYmc";
-    doc["date"] = getDateTime();
+    StaticJsonDocument<600> doc;
+    doc["project"]["name"] = "Cyclops";
+    doc["project"]["version"] = "2.0";
+    doc["project"]["author"] = "AtaCanYmc";
+    doc["project"]["date"] = getDateTime();
+
+    doc["device"]["author"] = "AtaCanYmc";
+    doc["device"]["horizontaPIN"] = HORIZONTAL_PIN;
+    doc["device"]["verticalPIN"] = VERTICAL_PIN;
+    doc["device"]["isFlashOnCapture"] = eye->isFlashOnCapture;
+    doc["device"]["isFlashOn"] = eye->flashState;
+    doc["device"]["horizontalAxisAngle"] = skeleton->horizontalAxisAngle;
+    doc["device"]["verticalAxisAngle"] = skeleton->verticalAxisAngle;
+
+    doc["chip"]["chipModel"] = ESP.getChipModel();
+    doc["chip"]["chipRevision"] = ESP.getChipRevision();
+    doc["chip"]["cpuFreqMHz"] = ESP.getCpuFreqMHz();
+
+    doc["wifi"]["ssid"] = WiFi.SSID();
+    doc["wifi"]["pwd"] = WiFi.psk();
+    doc["wifi"]["rssi"] = WiFi.RSSI();
+    doc["wifi"]["ip"] = WiFi.localIP().toString();
+    doc["wifi"]["isConnected"] = WiFi.isConnected();
+    doc["wifi"]["host"] = WiFi.getHostname();
+    doc["wifi"]["dns"] = WiFi.dnsIP().toString();
+    doc["wifi"]["mac"] = WiFi.macAddress();
+    doc["wifi"]["gateway"] = WiFi.gatewayIP().toString();
+    doc["wifi"]["subnet"] = WiFi.subnetMask().toString();
+
     serializeJson(doc, messageJson);
     brainServer->send(200, "application/json", messageJson);
 }
@@ -105,39 +123,7 @@ void Brain::returnError(errorContainer error){
     doc["errorType"] = error.errorType;
     doc["errorCode"] = error.errorCode;
     serializeJson(doc, errorJson);
-    brainServer->send(200, "application/json", errorJson);
-}
-
-void Brain::getSettings(){
-    String settingsJson;
-    StaticJsonDocument<1024> doc;
-    doc["date"] = getDateTime();
-
-    doc["deviceInfo"]["name"] = "Cyclops";
-    doc["deviceInfo"]["version"] = "2.0";
-    doc["deviceInfo"]["author"] = "AtaCanYmc";
-    doc["deviceInfo"]["horizontaPIN"] = HORIZONTAL_PIN;
-    doc["deviceInfo"]["verticalPIN"] = VERTICAL_PIN;
-    doc["deviceInfo"]["isFlashOnCapture"] = eye->isFlashOnCapture;
-    doc["deviceInfo"]["isFlashOn"] = eye->flashState;
-    doc["deviceInfo"]["horizontalAxisAngle"] = skeleton->horizontalAxisAngle;
-    doc["deviceInfo"]["verticalAxisAngle"] = skeleton->verticalAxisAngle;
-
-    doc["chipInfo"]["chipModel"] = ESP.getChipModel();
-    doc["chipInfo"]["chipRevision"] = ESP.getChipRevision();
-    doc["chipInfo"]["cpuFreqMHz"] = ESP.getCpuFreqMHz();
-
-    doc["wifiInfo"]["ssid"] = WiFi.SSID();
-    doc["wifiInfo"]["pwd"] = WiFi.psk();
-    doc["wifiInfo"]["rssi"] = WiFi.RSSI();
-    doc["wifiInfo"]["ip"] = WiFi.localIP().toString();
-    doc["wifiInfo"]["isConnected"] = WiFi.isConnected();
-    doc["wifiInfo"]["host"] = WiFi.getHostname();
-    doc["wifiInfo"]["dns"] = WiFi.dnsIP().toString();
-    doc["wifiInfo"]["mac"] = WiFi.macAddress();
-
-    serializeJson(doc, settingsJson);
-    brainServer->send(200, "application/json", settingsJson);
+    brainServer->send(error.errorCode, "application/json", errorJson);
 }
 
 void Brain::getWifiScan(){
@@ -152,8 +138,17 @@ void Brain::getWifiScan(){
     for(int i = 0; i < numberOfNetworks; i++){
         wifis[i]["ssid"] = WiFi.SSID(i);
         wifis[i]["rssi"] = WiFi.RSSI(i);
+        wifis[i]["encryptionType"] = WiFi.encryptionType(i);
+        if(this->memory->getWifiPass(WiFi.SSID(i)) != "" ){
+            wifis[i]["isConfigured"] = true;
+            wifis[i]["pwd"] = this->memory->getWifiPass(WiFi.SSID(i));
+        }
+        else{
+            wifis[i]["isConfigured"] = false;
+        }
+
     }
-    doc["wifis"] = wifis;
+    doc["wifiList"] = wifis;
     serializeJson(doc, wifiScanJson);
     brainServer->send(200, "application/json", wifiScanJson);
 }
@@ -167,35 +162,81 @@ String Brain::getDateTime(){
     return String(dateTime);
 }
 
-void Brain::setSettings(){ // TODO: add body read
-    String messageJson;
-    StaticJsonDocument<512> doc;
-    doc["message"] = "Settings updated";
-    doc["date"] = getDateTime();
-    serializeJson(doc, messageJson);
-    brainServer->send(200, "application/json", messageJson);
-}
-
-void Brain::setWifi(){  // TODO: add body read
+void Brain::setWifiConnection(){  // TODO: add body read
     String messageJson;
     StaticJsonDocument<512> doc;
     StaticJsonDocument<512> postBodyDoc;
+    errorContainer errorCont;
     String postBody = brainServer->arg("plain");
     DeserializationError error = deserializeJson(postBodyDoc, postBody);
 
     if (error) {
         Serial.print(F("[Wifi] deserializeJson() failed: "));
-        doc["date"] = getDateTime();
-        doc["message"] = "Wifi update failed";
-        doc["error"] = error.c_str();
-        brainServer->send(400, "application/json", messageJson);
+        errorCont.date = getDateTime();
+        errorCont.error = "Wifi update failed";
+        errorCont.errorType = "Wifi";
+        errorCont.errorCode = 400;
+        returnError(errorCont);
         return;
     }
 
     JsonObject postObj = postBodyDoc.as<JsonObject>();
     const char* ssid = postObj["ssid"];
     const char* pwd = postObj["pwd"];
-    //connectWifi(ssid, pwd);
+    connectToWifi(ssid, pwd);
+
+    doc["message"] = "Wifi updated";
+    doc["date"] = getDateTime();
+    serializeJson(doc, messageJson);
+    brainServer->send(200, "application/json", messageJson);
+}
+
+void Brain::connectToWifi(String ssid, String password) {
+    if(WiFi.isConnected()){
+        Serial.println("[Wifi] Already connected to a wifi");
+        WiFi.disconnect();
+        Serial.println("[Wifi] Disconnected from wifi");
+    }
+
+    Serial.print("[Wifi] Connecting to wifi: ");
+    Serial.println(ssid);
+
+    WiFi.begin(ssid, password);
+
+    while (WiFi.status() != WL_CONNECTED) {
+        Serial.print('.');
+        delay(500);
+    }
+
+    Serial.println("\n[Wifi] Wifi Connected");
+    Serial.print("[Wifi] RRSI: ");
+    Serial.println(WiFi.RSSI());
+    Serial.print("[Wifi] IP ADDRESS: ");
+    Serial.println(WiFi.localIP());
+}
+
+void Brain::addWifiConfig(){ // TODO: add body read
+    String messageJson;
+    StaticJsonDocument<512> doc;
+    StaticJsonDocument<512> postBodyDoc;
+    errorContainer errorCont;
+    String postBody = brainServer->arg("plain");
+    DeserializationError error = deserializeJson(postBodyDoc, postBody);
+
+    if (error) {
+        Serial.print(F("[Wifi] deserializeJson() failed: "));
+        errorCont.date = getDateTime();
+        errorCont.error = "Wifi update failed";
+        errorCont.errorType = "Wifi";
+        errorCont.errorCode = 400;
+        returnError(errorCont);
+        return;
+    }
+
+    JsonObject postObj = postBodyDoc.as<JsonObject>();
+    const char* ssid = postObj["ssid"];
+    const char* pwd = postObj["pwd"];
+    this->memory->addNewWifiConfig(ssid, pwd);
 
     doc["message"] = "Wifi updated";
     doc["date"] = getDateTime();
@@ -205,16 +246,18 @@ void Brain::setWifi(){  // TODO: add body read
 
 void Brain::getEye(){
     String messageJson;
-    StaticJsonDocument<512> doc;
+    StaticJsonDocument<200> doc;
     doc["date"] = getDateTime();
     doc["isFlashOnCapture"] = eye->isFlashOnCapture;
     doc["isFlashOn"] = eye->flashState;
+    doc["autoSave"] = eye->autoSave;
     serializeJson(doc, messageJson);
     brainServer->send(200, "application/json", messageJson);
 }
 
 void Brain::setEye(){ // TODO: add body read
     String messageJson;
+    errorContainer errorCont;
     StaticJsonDocument<512> doc;
     StaticJsonDocument<512> postBodyDoc;
     String postBody = brainServer->arg("plain");
@@ -222,21 +265,32 @@ void Brain::setEye(){ // TODO: add body read
 
     if (error) {
         Serial.print(F("[Eye] deserializeJson() failed: "));
-        doc["date"] = getDateTime();
-        doc["message"] = "Eye update failed";
-        doc["error"] = error.c_str();
-        brainServer->send(400, "application/json", messageJson);
+        errorCont.date = getDateTime();
+        errorCont.error = "Eye update failed";
+        errorCont.errorType = "Eye";
+        errorCont.errorCode = 400;
+        returnError(errorCont);
+        return;
+    }
+    try{
+        JsonObject postObj = postBodyDoc.as<JsonObject>();
+        eye->setFlash(postObj["isFlashOn"]);
+        eye->isFlashOnCapture = postObj["isFlashOnCapture"];
+        eye->autoSave = postObj["autoSave"];
+    }
+    catch(const std::exception& e){
+        errorCont.date = getDateTime();
+        errorCont.error = "Eye update failed";
+        errorCont.errorType = "Eye";
+        errorCont.errorCode = 400;
+        returnError(errorCont);
         return;
     }
 
-    JsonObject postObj = postBodyDoc.as<JsonObject>();
-    eye->setFlash(postObj["isFlashOn"]);
-    eye->isFlashOnCapture = postObj["isFlashOnCapture"];
-
     doc["date"] = getDateTime();
-    doc["message"] = "Eye updated";
     doc["isFlashOnCapture"] = eye->isFlashOnCapture;
     doc["isFlashOn"] = eye->flashState;
+    doc["autoSave"] = eye->autoSave;
     serializeJson(doc, messageJson);
     brainServer->send(200, "application/json", messageJson);
 }
@@ -247,11 +301,14 @@ void Brain::getSkeleton(){
     doc["date"] = getDateTime();
     doc["horizontalAxisAngle"] = skeleton->horizontalAxisAngle;
     doc["verticalAxisAngle"] = skeleton->verticalAxisAngle;
+    doc["verticalPin"] = VERTICAL_PIN;
+    doc["horizontalPin"] = HORIZONTAL_PIN;
     serializeJson(doc, messageJson);
     brainServer->send(200, "application/json", messageJson);
 }
 
 void Brain::setSkeleton(){ // TODO: add body read
+    errorContainer errorCont;
     String postBody = brainServer->arg("plain");
     Serial.println(postBody);
     String messageJson;
@@ -261,49 +318,70 @@ void Brain::setSkeleton(){ // TODO: add body read
 
     if (error) {
         Serial.print(F("[Skeleton] deserializeJson() failed: "));
-        doc["date"] = getDateTime();
-        doc["message"] = "Skeleton update failed";
-        doc["error"] = error.c_str();
-        brainServer->send(400, "application/json", messageJson);
+        errorCont.date = getDateTime();
+        errorCont.error = "Skeleton update failed";
+        errorCont.errorType = "Skeleton";
+        errorCont.errorCode = 400;
+        returnError(errorCont);
         return;
     }
 
-    JsonObject postObj = postBodyDoc.as<JsonObject>();
-    skeleton->setAxis('X', postObj["horizontalAxisAngle"]);
-    skeleton->setAxis('Y', postObj["verticalAxisAngle"]);
+    try {
+        JsonObject postObj = postBodyDoc.as<JsonObject>();
+        skeleton->setAxis('X', postObj["horizontalAxisAngle"]);
+        skeleton->setAxis('Y', postObj["verticalAxisAngle"]);
+    } catch (const std::exception& e){
+        errorCont.date = getDateTime();
+        errorCont.error = "Skeleton update failed";
+        errorCont.errorType = "Skeleton";
+        errorCont.errorCode = 400;
+        returnError(errorCont);
+        return;
+    }
 
     doc["date"] = getDateTime();
     doc["message"] = "Skeleton updated";
     doc["horizontalAxisAngle"] = skeleton->horizontalAxisAngle;
     doc["verticalAxisAngle"] = skeleton->verticalAxisAngle;
+    doc["verticalPin"] = VERTICAL_PIN;
+    doc["horizontalPin"] = HORIZONTAL_PIN;
     serializeJson(doc, messageJson);
     brainServer->send(200, "application/json", messageJson);
 }
 
 void Brain::captureImage(){
-    String imagePath = this->eye->savePhoto(*this->fileSystem);
-    bool isOk = this->eye->checkPhoto(*this->fileSystem);
-    if(!isOk){
-        errorContainer error;
-        error.date = getDateTime();
-        error.error = "Image capture failed";
-        error.errorType = "Image";
-        error.errorCode = 501;
-        returnError(error);
+    String messageJson;
+    errorContainer errorCont;
+    DynamicJsonDocument doc(1024*15);
+    String base64Image = "";
+    String imagePath = "";
+    bool isOk = true;
+
+    base64Image = eye->capture();
+
+    if(base64Image == ""){
+        errorCont.date = getDateTime();
+        errorCont.error = "Image capture failed";
+        errorCont.errorType = "Image";
+        errorCont.errorCode = 500;
+        returnError(errorCont);
         return;
     }
-    String base64Image = this->eye->getPhotoBase64(this->eye->fileNumber - 1, *this->fileSystem);
-    String messageJson;
-    DynamicJsonDocument doc(1024*15);
+
+    if(this->eye->autoSave){
+        imagePath = this->eye->save(base64Image);
+        isOk = this->eye->check(imagePath);
+    }
 
     doc["date"] = getDateTime();
-    doc["message"] = isOk ? "Image captured" : "Image capture failed";
-    doc["isFlashOn"] = eye->flashState;
-    doc["isFlashOnCapture"] = eye->isFlashOnCapture;
-    doc["imageType"] = "image/jpeg";
-    doc["imageSize"] = base64Image.length();
-    doc["imagePath"] = imagePath;
-    doc["image"] = base64Image;
+    doc["image"]["data"] = base64Image;
+    doc["image"]["path"] = imagePath;
+    doc["image"]["status"] = isOk;
+    doc["Eye"]["isFlashOnCapture"] = eye->isFlashOnCapture;
+    doc["Eye"]["isFlashOn"] = eye->flashState;
+    doc["Eye"]["autoSave"] = eye->autoSave;
+    doc["Eye"]["flashPin"] = FLASH_PIN;
+
     serializeJson(doc, messageJson);
     brainServer->send(200, "application/json", messageJson);
 }

@@ -121,13 +121,13 @@ void Memory::addNewWifiConfig(const String ssid, const String password)
     Serial.printf("[Memory] The wifi config has been saved in %s - Size: %d bytes\n", this->wifiConfigFile.c_str(), file.size());
 }
 
-JsonObject Memory::getWifiConfig(const String ssid)
+String Memory::getWifiPass(const String ssid)
 {
     File file = this->getFileFromPath(this->wifiConfigFile);
     if (!file)
     {
         Serial.println("[Memory] File open failed");
-        return JsonObject();
+        return "";
     }
 
     size_t fileSize = file.size();
@@ -139,12 +139,17 @@ JsonObject Memory::getWifiConfig(const String ssid)
     if (error)
     {
         Serial.println("[Memory] Failed to read file, using default configuration");
-        return JsonObject();
+        return "";
     }
 
     file.close();
 
-    return doc.as<JsonObject>();
+    if(doc.containsKey(ssid)){
+        return doc[ssid];
+    }
+    else{
+        return "";
+    }
 }
 
 JsonObject Memory::getAllWifiConfig()

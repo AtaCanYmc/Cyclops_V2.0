@@ -21,7 +21,7 @@ class Memory {
         void deleteAllImages();
 
         void addNewWifiConfig(String ssid, String password);
-        JsonObject getWifiConfig(String ssid);
+        String getWifiPass(String ssid);
         JsonObject getAllWifiConfig();
         void deleteWifiConfig(String ssid);
         void deleteAllWifiConfig();

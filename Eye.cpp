@@ -1,19 +1,9 @@
 #include "Eye.h"
 
-Eye::Eye(fs::FS &fileSystem) {
-    this->fileSystem = &fileSystem;
+Eye::Eye(Memory &memory) {
+    this->memory = &memory;
     pinMode(FLASH_PIN, OUTPUT);
     digitalWrite(FLASH_PIN, LOW);
-}
-
-String Eye::getFileName(int fileNumber) {
-    String fileName = preFileName + String(fileNumber) + postFileName;
-    return fileName;
-}
-
-void Eye::flashToggle() {
-    flashState = !flashState;
-    digitalWrite(FLASH_PIN, flashState);
 }
 
 void Eye::setFlash(boolean flashState) {
@@ -21,65 +11,74 @@ void Eye::setFlash(boolean flashState) {
     digitalWrite(FLASH_PIN, flashState);
 }
 
-String Eye::savePhoto(fs::FS &fs) {
+String Eye::capture() {
     this->fb = NULL;
-    bool ok = 0;
-    int maxTry = 5;
-    int fNumber = this->fileNumber;
-    String fileName = this->getFileName(fNumber);
+    char *input = (char *)fb->buf;
+    char output[base64_enc_len(3)];
+    String imageFile = "data:image/jpeg;base64,";
 
-    do {
-        Serial.println("[Eye] Taking a photo...");
-        if(this->isFlashOnCapture) {
-            digitalWrite(FLASH_PIN, HIGH);
-        }
+    Serial.println("[Eye] Taking a photo...");
+    if(this->isFlashOnCapture) {
+        this->setFlash(true);
+    }
+    fb = esp_camera_fb_get();
+    this->setFlash(false);
 
-        fb = esp_camera_fb_get();
-        if (!fb) {
-            Serial.println("[Eye] Camera capture failed");
-            return "Camera capture failed";
-        } else {
-            Serial.println("[Eye] Camera capture successful");
-            digitalWrite(FLASH_PIN, flashState);
-        }
-
-
-
-        Serial.printf("[EYE] Picture file name: %s\n", fileName.c_str());
-        File file = SPIFFS.open(fileName.c_str(), FILE_WRITE);
-
-        if (!file) {
-            Serial.println("[EYE] Failed to open file in writing mode");
-        }
-        else {
-            file.write(fb->buf, fb->len); // payload (image), payload length
-            Serial.print("[EYE] The picture has been saved in ");
-            Serial.print(fileName);
-            Serial.print(" - Size: ");
-            Serial.print(file.size());
-            Serial.println(" bytes");
-        }
-
-        file.close();
+    if (!fb) {
+        Serial.println("[Eye] Camera capture failed");
         esp_camera_fb_return(fb);
+        return "";
+    }
 
-        ok = checkPhoto(SPIFFS);
-    } while ( !ok && maxTry-- > 0 );
+    for (int i=0;i<fb->len;i++) {
+        base64_encode(output, (input++), 3);
+        if (i%3==0) imageFile += String(output);
+    }
 
-    this->fileNumber++;
+    esp_camera_fb_return(fb);
+
+    Serial.println("Camera capture successful");
+    Serial.println(imageFile);
+    return imageFile;
+}
+
+String Eye::save(String base64Image) {
+    String fileName = this->memory->requestNewImagePath();
+    File file = this->memory->getFileFromPath(fileName);
+    if (!file) {
+        Serial.println("[Memory] File open failed");
+        return "";
+    }
+
+    int outputLength = base64_dec_len((char *)base64Image.c_str(), base64Image.length());
+    std::unique_ptr<uint8_t[]> buf(new uint8_t[outputLength]);
+    base64_decode((char *)buf.get(), (char *)base64Image.c_str(), base64Image.length());
+
+    file.write((uint8_t*)buf.get(), outputLength);
+    file.close();
+
+    Serial.println("[Memory] File saved");
     return fileName;
 }
 
-bool Eye::checkPhoto(fs::FS &fs) {
-    File f_pic = fs.open( FILE_PATH );
-    unsigned int pic_sz = f_pic.size();
-    return ( pic_sz > 100 );
+bool Eye::check(String fileName) {
+    File file = this->memory->getFileFromPath(fileName);
+    if (!file)
+    {
+        Serial.println("[Memory] File open failed");
+        return false;
+    }
+
+    unsigned int fileSize = file.size();
+    return (fileSize > 100);
 }
 
-File Eye::getPhoto(fs::FS &fs) {
-    File f_pic = fs.open(FILE_PATH, FILE_READ);
-    return f_pic;
-}
+
+
+
+
+
+
 
 /*String Eye::getPhotoBase64(fs::FS &fs) {
     camera_fb_t * fb = NULL;
@@ -104,7 +103,7 @@ File Eye::getPhoto(fs::FS &fs) {
     return imageFile;
 }*/
 
- String Eye::getPhotoBase64(int fileNumber, fs::FS &fs) {
+ /*String Eye::getPhotoBase64(int fileNumber, fs::FS &fs) {
     String fileName = this->getFileName(fileNumber);
     File file = fs.open(fileName.c_str(), FILE_READ);
     if(!file) {
@@ -130,22 +129,6 @@ File Eye::getPhoto(fs::FS &fs) {
     Serial.println("[Eye] File read and base64 conversion successful");
     //Serial.println(imageFile);
     return imageFile;
-}
-
-void Eye::deleteImage(int fileNumber, fs::FS &fs) {
-    String fileName = this->getFileName(fileNumber);
-    while(fs.exists(fileName.c_str())) {
-        fs.remove(fileName.c_str());
-        Serial.println("[Eye] File deleted");
-    }
-}
-
-int Eye::getLastFileNumber(fs::FS &fs) {
-    int fileNumber = 0;
-    while(fs.exists(this->getFileName(fileNumber).c_str())) {
-        fileNumber++;
-    }
-    return fileNumber;
-}
+}*/
 
 
