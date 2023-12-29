@@ -9,7 +9,6 @@
 #include "Memory.h"
 
 #define FLASH_PIN 4
-#define FILE_PATH "/image.jpg"
 
 //------------------ ESP32 CAM ------------------
 
@@ -19,7 +18,6 @@ public:
     bool isFlashOnCapture = false;
     bool flashState = false;
     bool autoSave = false;
-    camera_fb_t *fb = NULL;
     Memory *memory;
 
     Eye(Memory &memory);

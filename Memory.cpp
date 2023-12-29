@@ -5,10 +5,8 @@ Memory::Memory(fs::FS &fileSystem)
     this->fileSystem = &fileSystem;
     if(!this->fileSystem->exists(this->wifiConfigFile.c_str())){
         File file = this->fileSystem->open(this->wifiConfigFile.c_str(), FILE_WRITE);
+        Serial.println("[Memory] Wifi config file created");
         file.close();
-    }
-    if(!this->fileSystem->exists("/Images")){
-        this->fileSystem->mkdir("/Images");
     }
 }
 
@@ -16,7 +14,7 @@ File Memory::getFileFromPath(String path)
 {
     try
     {
-        return this->fileSystem->open(path);
+        return this->fileSystem->open(path, "r");
     }
     catch (const std::exception &e)
     {
@@ -28,56 +26,41 @@ File Memory::getFileFromPath(String path)
 
 String Memory::requestNewImagePath()
 {
-    String fileName = this->imagePreFileName + String(this->imageFileNumber) + this->imageType;
-    this->imageFileNumber++;
+    String fileName;
+    do {
+        fileName = this->imagePreFileName + String(++this->imageFileNumber) + this->imageType;
+    } while (this->fileSystem->exists(fileName));
+
+    this->fileSystem->open(fileName, "w").close();
+    Serial.printf("[Memory] New image file created: %s\n", fileName.c_str());
     return fileName;
 }
 
 String Memory::getImageFromPath(String path)
 {
-    File file = this->getFileFromPath(path);
+    File file = this->fileSystem->open(path.c_str(), "r");
     if (!file)
     {
         Serial.println("[Memory] File open failed");
-        return "";
+        return "[Memory] File open failed";
     }
 
-    size_t fileSize = file.size();
-    std::unique_ptr<uint8_t[]> buf(new uint8_t[fileSize]);
-    file.read(buf.get(), fileSize);
-
-    char *input = (char *)buf.get();
-    char output[base64_enc_len(3)];
-    String imageFile = "data:image/jpeg;base64,";
-
-    for (size_t i = 0; i < fileSize; i++)
-    {
-        base64_encode(output, (input++), 3);
-        if (i % 3 == 0)
-            imageFile += String(output);
-    }
-
+    String imageBase64 = file.readString();
     file.close();
-
     Serial.println("[Memory] File read and base64 conversion successful");
-    return imageFile;
+    return imageBase64;
 }
 
 void Memory::addNewImage(const String image, const String path)
 {
-    File file = this->getFileFromPath(path);
+    File file = this->fileSystem->open(path.c_str(), "w");
     if (!file)
     {
         Serial.println("[Memory] File open failed");
         return;
     }
 
-    int inputLength = image.length();
-    int decodedLength = base64_dec_len((char*)image.c_str(), inputLength);
-    char decoded[decodedLength];
-    base64_decode(decoded, (char*)image.c_str(), inputLength);
-
-    file.write((uint8_t *)decoded, decodedLength);
+    file.print(image);
     file.close();
 
     Serial.printf("[Memory] The picture has been saved in %s - Size: %d bytes\n", path.c_str(), file.size());
@@ -107,35 +90,45 @@ void Memory::deleteAllImages()
 
 void Memory::addNewWifiConfig(const String ssid, const String password)
 {
-    String wifiConfig = "{\"" + ssid + "\":\"" + password + "\"}";
-    File file = this->getFileFromPath(this->wifiConfigFile);
-    if (!file)
+    String wifiConfig = "\"" + ssid + "\":\"" + password + "\"";
+    File historyFile = this->fileSystem->open(this->wifiConfigFile.c_str(), "r");
+    String history = historyFile.readString();
+    if(history.length() > 0){
+        wifiConfig = history + "," + wifiConfig;
+    }
+    historyFile.close();
+
+    File file = this->fileSystem->open(this->wifiConfigFile.c_str(), "w");
+    if (file)
+    {
+        file.print(wifiConfig);
+        file.close();
+        Serial.printf("[Memory] The wifi config has been saved in %s - Size: %d bytes\n", this->wifiConfigFile.c_str(), file.size());
+    }
+    else
     {
         Serial.println("[Memory] File open failed");
-        return;
     }
 
-    file.write((uint8_t *)wifiConfig.c_str(), wifiConfig.length());
-    file.close();
+
 
     Serial.printf("[Memory] The wifi config has been saved in %s - Size: %d bytes\n", this->wifiConfigFile.c_str(), file.size());
 }
 
 String Memory::getWifiPass(const String ssid)
 {
-    File file = this->getFileFromPath(this->wifiConfigFile);
+    File file = this->fileSystem->open(this->wifiConfigFile.c_str(), "r");
     if (!file)
     {
         Serial.println("[Memory] File open failed");
         return "";
     }
 
-    size_t fileSize = file.size();
-    std::unique_ptr<uint8_t[]> buf(new uint8_t[fileSize]);
-    file.read(buf.get(), fileSize);
+    String fileContent = "{" + file.readString() + "}";
+
 
     StaticJsonDocument<200> doc;
-    DeserializationError error = deserializeJson(doc, buf.get());
+    DeserializationError error = deserializeJson(doc, fileContent);
     if (error)
     {
         Serial.println("[Memory] Failed to read file, using default configuration");
@@ -152,66 +145,59 @@ String Memory::getWifiPass(const String ssid)
     }
 }
 
-JsonObject Memory::getAllWifiConfig()
+StaticJsonDocument<200> Memory::getWifiConfigs()
 {
-    File file = this->getFileFromPath(this->wifiConfigFile);
+    File file = this->fileSystem->open(this->wifiConfigFile.c_str(), "r");
     if (!file)
     {
         Serial.println("[Memory] File open failed");
         return JsonObject();
     }
 
-    size_t fileSize = file.size();
-    std::unique_ptr<uint8_t[]> buf(new uint8_t[fileSize]);
-    file.read(buf.get(), fileSize);
+    String fileContent = "{" + file.readString() + "}";
+    file.close();
 
     StaticJsonDocument<200> doc;
-    DeserializationError error = deserializeJson(doc, buf.get());
+    DeserializationError error = deserializeJson(doc, fileContent);
     if (error)
     {
         Serial.println("[Memory] Failed to read file, using default configuration");
-        return JsonObject();
     }
 
-    file.close();
-
-    return doc.as<JsonObject>();
+    return doc;
 }
 
 void Memory::deleteWifiConfig(const String ssid)
 {
-    File file = this->getFileFromPath(this->wifiConfigFile);
+    String fileContent = "";
+    StaticJsonDocument<200> doc;
+    File file = this->fileSystem->open(this->wifiConfigFile.c_str(), "r");
     if (!file)
     {
         Serial.println("[Memory] File open failed");
         return;
     }
 
-    size_t fileSize = file.size();
-    std::unique_ptr<uint8_t[]> buf(new uint8_t[fileSize]);
-    file.read(buf.get(), fileSize);
-
-    StaticJsonDocument<200> doc;
-    DeserializationError error = deserializeJson(doc, buf.get());
+    fileContent = "{" + file.readString() + "}";
+    DeserializationError error = deserializeJson(doc, fileContent);
     if (error)
     {
         Serial.println("[Memory] Failed to read file, using default configuration");
         return;
     }
-
     file.close();
 
     JsonObject obj = doc.as<JsonObject>();
     obj.remove(ssid);
 
-    file = this->getFileFromPath(this->wifiConfigFile);
+    file = this->fileSystem->open(this->wifiConfigFile.c_str(), "w");
+    serializeJson(doc, fileContent);
     if (!file)
     {
+        file.print(fileContent);
         Serial.println("[Memory] File open failed");
         return;
     }
-
-    serializeJson(doc, file);
     file.close();
 }
 

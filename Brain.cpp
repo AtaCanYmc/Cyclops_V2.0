@@ -5,6 +5,7 @@ Brain::Brain(WebServer &brainServer, Memory &memory){
     this->brainServer = &brainServer;
     this->skeleton = new Skeleton();
     this->eye = new Eye(*this->memory);
+    this->voice = new Voice();
 }
 
 void Brain::restartDevice(){
@@ -26,11 +27,27 @@ void Brain::restServerRouting(){
         handleRoot();
     });
 
-    brainServer->on("/wifiScan", HTTP_GET, [&](){
+    brainServer->on("/wifi-scan", HTTP_GET, [&](){
         getWifiScan();
     });
 
+    brainServer->on("/wifi", HTTP_GET, [&](){
+        getWifiConfigs();
+    });
+
+    brainServer->on("/wifi", HTTP_DELETE, [&](){
+        deleteWifiConfig();
+    });
+
+    brainServer->on("/wifi-config", HTTP_DELETE, [&](){
+        deleteAllWifiConfig();
+    });
+
     brainServer->on("/wifi", HTTP_POST, [&](){
+        addWifiConfig();
+    });
+
+    brainServer->on("/connect", HTTP_POST, [&](){
         setWifiConnection();
     });
 
@@ -50,12 +67,32 @@ void Brain::restServerRouting(){
         setSkeleton();
     });
 
+    brainServer->on("/voice", HTTP_GET, [&](){
+        getVoice();
+    });
+
+    brainServer->on("/voice", HTTP_POST, [&](){
+        setVoice();
+    });
+
+    brainServer->on("/play", HTTP_POST, [&](){
+        makeSound();
+    });
+
     brainServer->on("/restart", HTTP_POST, [&](){
         restartDevice();
     });
 
     brainServer->on("/capture", HTTP_GET, [&](){
         captureImage();
+    });
+
+    brainServer->on("/image", HTTP_POST, [&](){
+        getImageFromFile();
+    });
+
+    brainServer->on("/image", HTTP_DELETE, [&](){
+        deleteImage();
     });
 
     brainServer->onNotFound([&](){
@@ -191,6 +228,15 @@ void Brain::setWifiConnection(){  // TODO: add body read
     brainServer->send(200, "application/json", messageJson);
 }
 
+void Brain::getWifiConfigs(){
+    String messageJson;
+    StaticJsonDocument<512> doc;
+    doc["date"] = getDateTime();
+    doc["wifiConfigs"] = this->memory->getWifiConfigs();
+    serializeJson(doc, messageJson);
+    brainServer->send(200, "application/json", messageJson);
+}
+
 void Brain::connectToWifi(String ssid, String password) {
     if(WiFi.isConnected()){
         Serial.println("[Wifi] Already connected to a wifi");
@@ -215,7 +261,7 @@ void Brain::connectToWifi(String ssid, String password) {
     Serial.println(WiFi.localIP());
 }
 
-void Brain::addWifiConfig(){ // TODO: add body read
+void Brain::addWifiConfig(){
     String messageJson;
     StaticJsonDocument<512> doc;
     StaticJsonDocument<512> postBodyDoc;
@@ -238,7 +284,47 @@ void Brain::addWifiConfig(){ // TODO: add body read
     const char* pwd = postObj["pwd"];
     this->memory->addNewWifiConfig(ssid, pwd);
 
-    doc["message"] = "Wifi updated";
+    doc["message"] = "Wifi config added";
+    doc["date"] = getDateTime();
+    serializeJson(doc, messageJson);
+    brainServer->send(200, "application/json", messageJson);
+}
+
+void Brain::deleteAllWifiConfig(){
+    String messageJson;
+    StaticJsonDocument<512> doc;
+    errorContainer errorCont;
+    this->memory->deleteAllWifiConfig();
+
+    doc["message"] = "Wifi configs deleted";
+    doc["date"] = getDateTime();
+    serializeJson(doc, messageJson);
+    brainServer->send(200, "application/json", messageJson);
+}
+
+void Brain::deleteWifiConfig(){
+    String messageJson;
+    StaticJsonDocument<512> doc;
+    StaticJsonDocument<512> postBodyDoc;
+    errorContainer errorCont;
+    String postBody = brainServer->arg("plain");
+    DeserializationError error = deserializeJson(postBodyDoc, postBody);
+
+    if (error) {
+        Serial.print(F("[Wifi] deserializeJson() failed: "));
+        errorCont.date = getDateTime();
+        errorCont.error = "Wifi update failed";
+        errorCont.errorType = "Wifi";
+        errorCont.errorCode = 400;
+        returnError(errorCont);
+        return;
+    }
+
+    JsonObject postObj = postBodyDoc.as<JsonObject>();
+    const char* ssid = postObj["ssid"];
+    this->memory->deleteWifiConfig(ssid);
+
+    doc["message"] = "Wifi config deleted";
     doc["date"] = getDateTime();
     serializeJson(doc, messageJson);
     brainServer->send(200, "application/json", messageJson);
@@ -349,6 +435,113 @@ void Brain::setSkeleton(){ // TODO: add body read
     brainServer->send(200, "application/json", messageJson);
 }
 
+void Brain::getVoice(){
+    String messageJson;
+    StaticJsonDocument<512> doc;
+    doc["date"] = getDateTime();
+    doc["voice"]["isMute"] = voice->isMute;
+    doc["voice"]["buzzerPin"] = BUZZER_PIN;
+    doc["voice"]["voiceTypes"][0] = "alarm";
+    doc["voice"]["voiceTypes"][1] = "emergency";
+    doc["voice"]["voiceTypes"][2] = "notification";
+    serializeJson(doc, messageJson);
+    brainServer->send(200, "application/json", messageJson);
+}
+
+void Brain::setVoice(){
+    errorContainer errorCont;
+    String postBody = brainServer->arg("plain");
+    String messageJson;
+    StaticJsonDocument<512> doc;
+    StaticJsonDocument<512> postBodyDoc;
+    DeserializationError error = deserializeJson(postBodyDoc, postBody);
+
+    if (error) {
+        Serial.print(F("[Voice] deserializeJson() failed: "));
+        errorCont.date = getDateTime();
+        errorCont.error = "Voice update failed";
+        errorCont.errorType = "Voice";
+        errorCont.errorCode = 400;
+        returnError(errorCont);
+        return;
+    }
+
+    try {
+        JsonObject postObj = postBodyDoc.as<JsonObject>();
+        voice->isMute = postObj["isMute"];
+    } catch (const std::exception& e){
+        errorCont.date = getDateTime();
+        errorCont.error = "Voice update failed";
+        errorCont.errorType = "Voice";
+        errorCont.errorCode = 400;
+        returnError(errorCont);
+        return;
+    }
+
+    doc["date"] = getDateTime();
+    doc["message"] = "Voice updated";
+    doc["voice"]["isMute"] = voice->isMute;
+    doc["voice"]["buzzerPin"] = BUZZER_PIN;
+    serializeJson(doc, messageJson);
+    brainServer->send(200, "application/json", messageJson);
+}
+
+void Brain::makeSound(){
+    String messageJson;
+    errorContainer errorCont;
+    StaticJsonDocument<512> doc;
+    StaticJsonDocument<512> postBodyDoc;
+    String postBody = brainServer->arg("plain");
+    DeserializationError error = deserializeJson(postBodyDoc, postBody);
+
+    if (error) {
+        Serial.print(F("[Voice] deserializeJson() failed: "));
+        errorCont.date = getDateTime();
+        errorCont.error = "Voice update failed";
+        errorCont.errorType = "Voice";
+        errorCont.errorCode = 400;
+        returnError(errorCont);
+        return;
+    }
+
+    try {
+        JsonObject postObj = postBodyDoc.as<JsonObject>();
+        String voiceType = postObj["voiceType"];
+
+        if(voiceType == "alarm"){
+            voice->alarm();
+        }
+        else if(voiceType == "emergency"){
+            voice->emergency();
+        }
+        else if(voiceType == "notification"){
+            voice->notification();
+        }
+        else{
+            errorCont.date = getDateTime();
+            errorCont.error = "Voice update failed";
+            errorCont.errorType = "Voice";
+            errorCont.errorCode = 400;
+            returnError(errorCont);
+            return;
+        }
+    } catch (const std::exception& e){
+        errorCont.date = getDateTime();
+        errorCont.error = "Voice update failed";
+        errorCont.errorType = "Voice";
+        errorCont.errorCode = 400;
+        returnError(errorCont);
+        return;
+    }
+
+    doc["date"] = getDateTime();
+    doc["message"] = "Sound played";
+    doc["voice"]["isMute"] = voice->isMute;
+    doc["voice"]["buzzerPin"] = BUZZER_PIN;
+    serializeJson(doc, messageJson);
+    brainServer->send(200, "application/json", messageJson);
+}
+
 void Brain::captureImage(){
     String messageJson;
     errorContainer errorCont;
@@ -386,8 +579,87 @@ void Brain::captureImage(){
     brainServer->send(200, "application/json", messageJson);
 }
 
+void Brain::getImageFromFile(){ // post method
+    String messageJson;
+    errorContainer errorCont;
+    String postBody = brainServer->arg("plain");
+    DynamicJsonDocument doc(1024*15);
+    StaticJsonDocument<512> postBodyDoc;
+    DeserializationError error = deserializeJson(postBodyDoc, postBody);
 
+    if (error) {
+        Serial.print(F("[Image] deserializeJson() failed: "));
+        errorCont.date = getDateTime();
+        errorCont.error = "Image search failed";
+        errorCont.errorType = "Image";
+        errorCont.errorCode = 400;
+        returnError(errorCont);
+        return;
+    }
 
+    try {
+        JsonObject postObj = postBodyDoc.as<JsonObject>();
+        String imagePath = postObj["imagePath"];
+        String base64Image = this->memory->getImageFromPath(imagePath);
+
+        doc["date"] = getDateTime();
+        doc["image"]["data"] = base64Image;
+        doc["image"]["path"] = imagePath;
+        doc["image"]["status"] = true;
+        doc["Eye"]["isFlashOnCapture"] = eye->isFlashOnCapture;
+        doc["Eye"]["isFlashOn"] = eye->flashState;
+        doc["Eye"]["autoSave"] = eye->autoSave;
+        doc["Eye"]["flashPin"] = FLASH_PIN;
+    } catch (const std::exception& e){
+        errorCont.date = getDateTime();
+        errorCont.error = "Image update failed";
+        errorCont.errorType = "Image";
+        errorCont.errorCode = 400;
+        returnError(errorCont);
+        return;
+    }
+
+    serializeJson(doc, messageJson);
+    brainServer->send(200, "application/json", messageJson);
+}
+
+void Brain::deleteImage(){ // post method
+    String messageJson;
+    errorContainer errorCont;
+    String postBody = brainServer->arg("plain");
+    StaticJsonDocument<512> doc;
+    StaticJsonDocument<512> postBodyDoc;
+    DeserializationError error = deserializeJson(postBodyDoc, postBody);
+
+    if (error) {
+        Serial.print(F("[Image] deserializeJson() failed: "));
+        errorCont.date = getDateTime();
+        errorCont.error = "Image delete failed";
+        errorCont.errorType = "Image";
+        errorCont.errorCode = 400;
+        returnError(errorCont);
+        return;
+    }
+
+    try {
+        JsonObject postObj = postBodyDoc.as<JsonObject>();
+        String imagePath = postObj["imagePath"];
+        this->memory->deleteImage(imagePath);
+
+        doc["date"] = getDateTime();
+        doc["image"]["path"] = imagePath;
+    } catch (const std::exception& e){
+        errorCont.date = getDateTime();
+        errorCont.error = "Image delete failed";
+        errorCont.errorType = "Image";
+        errorCont.errorCode = 400;
+        returnError(errorCont);
+        return;
+    }
+
+    serializeJson(doc, messageJson);
+    brainServer->send(200, "application/json", messageJson);
+}
 
 
 

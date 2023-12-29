@@ -22,14 +22,14 @@ class Memory {
 
         void addNewWifiConfig(String ssid, String password);
         String getWifiPass(String ssid);
-        JsonObject getAllWifiConfig();
+        StaticJsonDocument<200> getWifiConfigs();
         void deleteWifiConfig(String ssid);
         void deleteAllWifiConfig();
 
     private:
         int imageFileNumber = 0;
-        String imagePreFileName = "Images/cyclops_";
-        String imageType = ".jpg";
+        String imagePreFileName = "/cyclopsBase64_";
+        String imageType = ".txt";
         String wifiConfigFile = "/wifiConfig.json";
 };
 

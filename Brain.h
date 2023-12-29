@@ -11,6 +11,7 @@
 #include "Skeleton.h"
 #include "Memory.h"
 #include "Eye.h"
+#include "Voice.h"
 #include <SPIFFS.h>
 #include <FS.h>
 
@@ -27,6 +28,7 @@ class Brain { // For Web Server
         Memory *memory;
         Skeleton *skeleton;
         Eye *eye;
+        Voice *voice;
 
         Brain(WebServer &brainServer, Memory &memory);
         void restServerRouting();
@@ -39,9 +41,12 @@ class Brain { // For Web Server
         void returnError(errorContainer error);
 
         void getWifiScan();
+        void getWifiConfigs();
         void setWifiConnection();
         void connectToWifi(String ssid, String password);
         void addWifiConfig();
+        void deleteWifiConfig();
+        void deleteAllWifiConfig();
 
         void getEye();
         void setEye();
@@ -49,7 +54,13 @@ class Brain { // For Web Server
         void getSkeleton();
         void setSkeleton();
 
+        void getVoice();
+        void setVoice();
+        void makeSound();
+
         void captureImage();
+        void getImageFromFile();
+        void deleteImage();
 };
 
 #endif
