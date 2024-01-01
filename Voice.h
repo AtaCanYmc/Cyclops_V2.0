@@ -7,11 +7,12 @@
 #include <Arduino.h>
 
 #define BUZZER_PIN 14
-#define ALARM_BUTTON_PIN 15
+#define ALARM_BUTTON_PIN 2
 
 class Voice {
 public:
     bool isMute = false;
+
     Voice();
     void alarm();
     void emergency();

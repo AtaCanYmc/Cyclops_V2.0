@@ -15,14 +15,15 @@ String Eye::capture() {
     esp_camera_fb_return(esp_camera_fb_get());
     camera_fb_t * fb = NULL;
     String imageFile = "data:image/jpeg;base64,";
+    bool beforeFlashState = this->flashState;
 
     Serial.println("[Eye] Taking a photo...");
     if(this->isFlashOnCapture) {
         this->setFlash(true);
-        delay(100);
+        delay(150);
     }
     fb = esp_camera_fb_get();
-    this->setFlash(false);
+    this->setFlash(beforeFlashState);
 
     if (!fb) {
         Serial.println("[Eye] Camera capture failed");

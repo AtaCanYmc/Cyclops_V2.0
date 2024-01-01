@@ -10,23 +10,19 @@
 #include "camera_code.h"
 #include "Brain.h"
 
-// https://mischianti.org/how-to-create-a-rest-server-on-esp8266-and-esp32-startup-part-1/
-
-
 //--------------------------------- Camera variables
 
 #define CAMERA_MODEL_AI_THINKER
 
 //--------------------------------- WIFI variables
 
-const char* ssid = "Kablonet Netmaster-0720-G";
-const char* pwd = "6db100b8";
+const char* ssid = "[Your SSID]";
+const char* pwd = "[Your Password]";
 IPAddress ip;
 
 WebServer server(80);
 Memory memory(SPIFFS);
 Brain brain(server, memory);
-
 
 void setup() {
     Serial.println("[Cyclops] Cyclops V2.0");
@@ -52,7 +48,6 @@ void setup() {
 
 void loop() {
     server.handleClient();
-
 }
 
 

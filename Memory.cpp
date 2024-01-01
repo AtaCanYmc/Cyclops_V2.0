@@ -8,19 +8,9 @@ Memory::Memory(fs::FS &fileSystem)
         Serial.println("[Memory] Wifi config file created");
         file.close();
     }
-}
-
-File Memory::getFileFromPath(String path)
-{
-    try
-    {
-        return this->fileSystem->open(path, "r");
-    }
-    catch (const std::exception &e)
-    {
-        Serial.println("[Memory] Error opening file");
-        Serial.println(e.what());
-        return File();
+    if(!this->fileSystem->exists("/images")){
+        this->fileSystem->mkdir("/images");
+        Serial.println("[Memory] Images folder created");
     }
 }
 
@@ -66,7 +56,7 @@ void Memory::addNewImage(const String image, const String path)
     Serial.printf("[Memory] The picture has been saved in %s - Size: %d bytes\n", path.c_str(), file.size());
 }
 
-void Memory::deleteImage(const String path)
+void Memory::deleteImage(String path)
 {
     while (this->fileSystem->exists(path.c_str()))
     {
@@ -77,11 +67,11 @@ void Memory::deleteImage(const String path)
 
 void Memory::deleteAllImages()
 {
-    if(this->fileSystem->exists("/Images")){
-        this->fileSystem->rmdir("/Images");
+    if(this->fileSystem->exists("/images")){
+        this->fileSystem->rmdir("/images");
         Serial.println("[Memory] Images folder deleted");
         // create a new one
-        this->fileSystem->mkdir("/Images");
+        this->fileSystem->mkdir("/images");
     }
     else{
         Serial.println("[Memory] Images folder does not exist");
@@ -172,23 +162,20 @@ void Memory::deleteWifiConfig(const String ssid)
     String fileContent = "";
     StaticJsonDocument<200> doc;
     File file = this->fileSystem->open(this->wifiConfigFile.c_str(), "r");
-    if (!file)
-    {
+    if (!file){
         Serial.println("[Memory] File open failed");
         return;
     }
 
     fileContent = "{" + file.readString() + "}";
     DeserializationError error = deserializeJson(doc, fileContent);
-    if (error)
-    {
+    if (error){
         Serial.println("[Memory] Failed to read file, using default configuration");
         return;
     }
     file.close();
 
-    JsonObject obj = doc.as<JsonObject>();
-    obj.remove(ssid);
+    doc.remove(ssid);
 
     file = this->fileSystem->open(this->wifiConfigFile.c_str(), "w");
     serializeJson(doc, fileContent);

@@ -12,7 +12,6 @@ class Memory {
         fs::FS *fileSystem;
 
         Memory(fs::FS &fileSystem);
-        File getFileFromPath(String path);
 
         String requestNewImagePath();
         String getImageFromPath(String path);
@@ -28,7 +27,7 @@ class Memory {
 
     private:
         int imageFileNumber = 0;
-        String imagePreFileName = "/cyclopsBase64_";
+        String imagePreFileName = "/images/cyclopsBase64_";
         String imageType = ".txt";
         String wifiConfigFile = "/wifiConfig.json";
 };
