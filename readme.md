@@ -126,7 +126,44 @@ class Skeleton { // For 2-axis pan-tilt
 
 ### WebServer Library <a name="webserver-library"></a>
 
-...
+ `<WebServer.h>` is a crucial header file used for developing web server applications on the ESP32 microcontroller platform. This library enables the deployment of your device as a web server, leveraging the built-in Wi-Fi capabilities of the ESP32. Web server applications are commonly employed in Internet of Things (IoT) projects and scenarios requiring remote device control. <WebServer.h> is designed to handle HTTP requests, serve dynamic content, create APIs, and, in general, make ESP32-based projects accessible over the web. This header file, combined with the robust processing capabilities of the ESP32, provides users with flexibility and customization options, allowing projects to become more interactive and accessible.
+
+```
+#include <WiFi.h>
+#include <WebServer.h>
+
+const char *ssid = "your-ssid";
+const char *password = "your-password";
+
+WebServer server(80);
+
+void handleRoot() {
+  server.send(200, "text/plain", "Hello, World!");
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  // Connect to Wi-Fi
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting to WiFi...");
+  }
+  Serial.println("Connected to WiFi");
+
+  // Define server route
+  server.on("/", HTTP_GET, handleRoot);
+
+  // Start server
+  server.begin();
+  Serial.println("Web server started");
+}
+
+void loop() {
+  server.handleClient();
+}
+```
 
 ### mDNS (Multicast DNS) <a name="mdns-multicast-dns"></a>
 
