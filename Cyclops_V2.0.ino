@@ -26,18 +26,17 @@ Brain brain(server, memory);
 
 void setup() {
     Serial.println("[Cyclops] Cyclops V2.0");
-
     Serial.begin(115200);
 
+    // start SPIFFS
+    startSPIFFS();
+
+    // start WIFI
     scanWifi();
-    connectWifi(ssid,pwd);
     setMDNS();
 
     // set device time from NTP servers for Turkey time zone
     setDeviceTime();
-
-    // start SPIFFS
-    startSPIFFS();
 
     // start camera
     startESPCamera();
@@ -50,25 +49,35 @@ void loop() {
     server.handleClient();
 }
 
-
-
 //--------------------------------- WIFI
 
 void scanWifi(){
-  int numberOfNetworks = WiFi.scanNetworks();
+    bool wifiConnected = false;
+    int numberOfNetworks = WiFi.scanNetworks();
+    Serial.println("[Wifi] ----------------------- Scanning Networks");
 
-  Serial.println("[Wifi] ----------------------- Scanning Networks");
+    for(int i = 0; i < numberOfNetworks; i++){
+        Serial.println("\n--------------------------------");
+        Serial.print("Network name: ");
+        Serial.println(WiFi.SSID(i));
+        Serial.print("Signal strength: ");
+        Serial.println(WiFi.RSSI(i));
+        Serial.println("--------------------------------");
 
-  for(int i = 0; i < numberOfNetworks; i++){
-    Serial.println("\n--------------------------------");
-    Serial.print("Network name: ");
-    Serial.println(WiFi.SSID(i));
-    Serial.print("Signal strength: ");
-    Serial.println(WiFi.RSSI(i));
-    Serial.println("--------------------------------");
-  }
+        if(memory.getWifiPass(WiFi.SSID(i)) != ""){
+            Serial.println("[Wifi] This network is already saved");
+            connectWifi(WiFi.SSID(i).c_str(), memory.getWifiPass(WiFi.SSID(i)).c_str());
+            wifiConnected = true;
+            break;
+        }
+    }
 
-  Serial.println("\n[Wifi] ----------------------- End of Networks\n");
+    if(!wifiConnected){
+        Serial.println("[Wifi] No saved network found");
+        Serial.println("[Wifi] Connecting to default network");
+        connectWifi(ssid,pwd);
+    }
+    Serial.println("\n[Wifi] ----------------------- End of Networks\n");
 }
 
 void connectWifi(const char* ssid, const char* pwd){
