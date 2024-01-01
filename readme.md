@@ -41,11 +41,11 @@ So, buckle up for a ride with Project Cyclops. It’s not just a security thing;
 
 In the Cyclops project, establishing a reliable connection for the ESP32-CAM module and configuring its settings are crucial steps to ensure seamless operation. This section provides a detailed overview of how to connect the ESP32-CAM to your system and configure essential parameters.
 
-### 1.1. Hardware Setup
+#### Hardware Setup
 
 Before configuring software settings, make sure the ESP32-CAM module is correctly connected to the pan-tilt mechanism and any additional components, such as servo motors and the buzzer. Check the wiring and power connections to ensure stability during operation.
 
-### 1.2. Wi-Fi Configuration
+#### Wi-Fi Configuration
 
 To enable the ESP32-CAM to connect to your local network, follow these steps:
 
@@ -54,7 +54,7 @@ To enable the ESP32-CAM to connect to your local network, follow these steps:
 3. Enter the network's SSID (Service Set Identifier) and, if applicable, the password.
 4. Save the configuration to allow the ESP32-CAM to establish a connection to the selected Wi-Fi network.
 
-### 1.3. Capture Preferences
+#### Capture Preferences
 
 Adjusting capture preferences is essential for tailoring the Cyclops camera to your specific needs. These preferences may include:
 
@@ -62,7 +62,7 @@ Adjusting capture preferences is essential for tailoring the Cyclops camera to y
 - **Flash Control:** Configure whether the flash should be activated during image capture.
 - **Auto-Save:** Choose whether captured images should be automatically saved to local storage.
 
-### 1.4. Additional Configuration Options
+#### Additional Configuration Options
 
 Explore additional configuration options based on the requirements of your security camera system. These may include:
 
@@ -73,11 +73,11 @@ By carefully configuring these settings, you can optimize the performance of you
 
 ### Image Transmission <a name="image-transmission"></a>
 
-### Base64 Usage
+#### Base64 Usage
 
 Base64 is an encoding method that allows data to be safely represented within the ASCII character set. In devices like ESP32-CAM, it is commonly used to transmit or store image or file data securely.
 
-### Encoding Process:
+#### Encoding Process:
 
 The ESP32 Arduino library includes the `base64` function for encoding data into Base64 format. Here's an example:
 
