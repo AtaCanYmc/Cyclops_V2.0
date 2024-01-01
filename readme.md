@@ -28,7 +28,7 @@ Cyclops is an ESP-CAM-based security camera project with pan-tilt capabilities, 
 
 ## 1. EYE: ESP-CAM Overview <a name="eye"></a>
 
-### ESP-CAM Introduction <a name="esp-cam-introduction"></a>
+### | ESP-CAM Introduction <a name="esp-cam-introduction"></a>
 
 Ever wished your home security could be as sharp as the mythical Cyclops’ gaze? Well, say hello to Project Cyclops! This isn’t your run-of-the-mill surveillance setup; we’re talking about a smart, sassy security camera system that’s about to rock your world.
 Cyclops isn’t just a name; it’s a vibe — a one-eyed wonder ready to redefine how we keep our spaces safe. Picture this: ESP-CAM, some nifty servo action, and a sprinkle of tech magic. Split into three cool sections: EYE, SKELETON, and BRAIN. Cyclops isn’t just a camera; it’s a whole security experience.
@@ -37,7 +37,7 @@ So, buckle up for a ride with Project Cyclops. It’s not just a security thing;
 
 [Read details from my Medium](https://medium.com/@atacanymc/home-security-cam-api-with-esp-part-1-dfaf1aa60980)
 
-### Connection and Configuration <a name="connection-and-configuration"></a>
+### | Connection and Configuration <a name="connection-and-configuration"></a>
 
 In the Cyclops project, establishing a reliable connection for the ESP32-CAM module and configuring its settings are crucial steps to ensure seamless operation. This section provides a detailed overview of how to connect the ESP32-CAM to your system and configure essential parameters.
 
@@ -71,7 +71,7 @@ Explore additional configuration options based on the requirements of your secur
 
 By carefully configuring these settings, you can optimize the performance of your ESP32-CAM-based Cyclops security camera and tailor it to meet specific project requirements. Always refer to the project documentation for any additional configuration options and best practices.
 
-### Image Transmission <a name="image-transmission"></a>
+### | Image Transmission <a name="image-transmission"></a>
 
 #### Base64 Usage
 
@@ -85,15 +85,42 @@ The ESP32 Arduino library includes the `base64` function for encoding data into 
 
 ### Pan-Tilt Introduction <a name="pan-tilt-introduction"></a>
 
-...
+As we delve deeper into the core of Cyclops, our Home Security Cam API with Esp, the “Skeleton” segment emerges as the beating heart of motion and adaptability. In this installment, we take a closer look at how the pan-tilt mechanism and servo motors seamlessly integrate, transforming our security camera into an agile sentinel. Also I suggest you read the other parts too.
+
+[Read details from my Medium](https://medium.com/@atacanymc/home-security-cam-api-with-esp-part-2-skeleton-e7110a234ea9)
 
 ### Servo Motors <a name="servo-motors"></a>
 
-...
+In the part of Skeleton, servo motors emerge as the unsung architects of Cyclops’ motion repertoire. Their ability to intricately control the pan-tilt dance ensures a level of responsiveness that transcends the ordinary. These motors, while driving our camera’s mechanical choreography, also lay the groundwork for interactive functionalities. From subtle adjustments in response to detected motion to dynamic repositioning based on user commands, the versatility of servo motors adds an extra layer of intelligence to our security system.
 
 ### ESP32Servo Library <a name="esp32servo-library"></a>
 
-...
+ESP32Servo.h is a library designed to facilitate the integration and control of servo motors specifically tailored for ESP32 microcontrollers. Servo motors, known for their precision in angular motion, are commonly employed in various projects ranging from robotics to DIY electronics.
+
+```
+#include <Arduino.h>
+#include <ESP32Servo.h>
+
+#define HORIZONTAL_PIN 12
+#define VERTICAL_PIN 13
+
+class Skeleton { // For 2-axis pan-tilt
+    public:
+      int horizontalAxisAngle = 0; // X
+      int verticalAxisAngle = 0; // Y
+      Servo horizontalAxis;
+      Servo verticalAxis;
+
+      Skeleton();
+      void setAxis(char axis, int angle);
+      int addAxis(char axis, int addAngle);
+
+    private:
+      void calibrate();
+      void setHorizontalAngle(int angle);
+      void setVerticalAngle(int angle);
+};
+```
 
 ## 3. BRAIN: RESTful API and System Control <a name="brain"></a>
 
